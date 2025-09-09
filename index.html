@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Generator Desain Nama Undangan</title>
+  <meta name="description" content="Upload atau pakai template default, isi nama tamu per baris, atur posisi teks, download PNG/PDF. Mendukung upload font custom.">
+  <link rel="icon" href="assets/hmj-teater.png">
+  <style>
+    :root{ --blue:#23495c; --blueDark:#1e3a4a; --border:#dcdcdc; --bg:#f5f7f9; }
+    *{ box-sizing:border-box }
+    body{ font-family: Arial, Helvetica, sans-serif; margin:0; background:var(--bg); color:#222 }
+    header{ background:var(--blue); color:#fff; padding:18px 20px; border-bottom:4px solid var(--blueDark); }
+    .headerWrap{ max-width:1200px; margin:0 auto; display:flex; align-items:center; gap:16px; }
+    .brand{ display:flex; align-items:center; gap:14px; }
+    #brandLogo{ height:56px; width:auto; object-fit:contain; filter: drop-shadow(0 2px 2px rgba(0,0,0,.2)); }
+    .titles h1{ margin:0; font-size:32px; font-weight:700; line-height:1.1 }
+    .titles p{ margin:.25rem 0 0; opacity:.9; font-size:14px }
+
+    .app{ max-width:1200px; margin:18px auto; display:grid; gap:20px; grid-template-columns: 1fr; padding:0 16px; }
+    @media(min-width:960px){ .app{ grid-template-columns: 1fr 1.2fr; } }
+
+    .card{ background:#fff; border:1px solid var(--border); border-radius:8px; padding:16px; box-shadow:0 6px 16px rgba(0,0,0,.04); }
+    h3{ margin:0 0 12px; font-size:18px }
+    label{ display:block; font-size:13px; margin-top:8px; margin-bottom:4px; color:#333 }
+    textarea{ width:100%; min-height:110px; border:1px solid var(--border); border-radius:6px; padding:10px }
+    input, select{ border:1px solid var(--border); border-radius:6px; padding:8px; font-size:14px }
+    input[type="color"]{ padding:2px; height:36px }
+    input[type="file"]{ padding:10px; border:1px dashed #bfc7ce; background:#fafbfc }
+    button{ cursor:pointer; background:var(--blue); color:#fff; border:none; border-radius:6px; padding:8px 12px; margin-right:8px }
+    button.secondary{ background:#4b5563 }
+
+    .previewFrame{ border:2px dashed #c9ced4; padding:8px; border-radius:8px; background:#fff }
+    canvas{ display:block; width:100%; height:auto; background:#fff }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="headerWrap">
+      <div class="brand">
+        <img id="brandLogo" alt="HMJ Teater" src="assets/hmj-teater.png" />
+      </div>
+      <div class="titles">
+        <h1>Generator Desain Nama Undangan</h1>
+        <p>Upload desain undangan kamu » Isi nama » Ketuk tulisan undangan » Download File</p>
+      </div>
+    </div>
+  </header>
+
+  <div class="app">
+    <div class="card">
+      <h3>Pengaturan</h3>
+
+      <details>
+        <summary>Ganti Logo Header (opsional)</summary>
+        <label>Upload Logo:</label>
+        <input id="logoInput" type="file" accept="image/*"><br>
+      </details>
+
+      <label>Template (pakai default atau upload baru):</label>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+        <button id="useDefault" type="button">Pakai Template Default</button>
+        <span style="opacity:.7; font-size:12px;">atau</span>
+        <input id="bgInput" type="file" accept="image/*">
+      </div>
+
+      <label>Daftar Nama (satu per baris):</label>
+      <textarea id="names" placeholder="Contoh:
+Bapak/Ibu Andi
+Keluarga Besar Nugroho
+Sdr. Rendra"></textarea><br>
+
+      <label>Ukuran Font:</label>
+      <input id="fontSize" type="number" value="72"><br>
+
+      <label>Warna Teks:</label>
+      <input id="fontColor" type="color" value="#000000"><br>
+
+      <label>Font Family:</label>
+      <select id="fontFamily">
+        <option value="Arial" selected>Arial</option>
+        <option value="Times New Roman">Times New Roman</option>
+        <option value="Georgia">Georgia</option>
+        <option value="Courier New">Courier New</option>
+      </select><br>
+
+      <label>Font Custom (TTF/OTF/WOFF):</label>
+      <input id="fontFile" type="file" accept=".ttf,.otf,.woff,.woff2"><br>
+
+      <button id="btnPreview">Preview</button>
+      <button id="btnPng">Download PNG</button>
+      <button id="btnPdf">Download PDF</button>
+    </div>
+
+    <div class="card">
+      <h3>Preview</h3>
+      <div class="previewFrame">
+        <canvas id="canvas" width="800" height="600"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script>
+    const DEFAULT_TEMPLATE_URL = "assets/template.png"; // pakai otomatis saat load
+    const DEFAULT_LOGO_URL = "assets/hmj-teater.png";
+
+    const bgInput     = document.getElementById("bgInput");
+    const logoInput   = document.getElementById("logoInput");
+    const brandLogo   = document.getElementById("brandLogo");
+    const useDefault  = document.getElementById("useDefault");
+    const namesInput  = document.getElementById("names");
+    const fontSizeInp = document.getElementById("fontSize");
+    const fontColorIn = document.getElementById("fontColor");
+    const fontFamilyS = document.getElementById("fontFamily");
+    const fontFileInp = document.getElementById("fontFile");
+    const btnPreview  = document.getElementById("btnPreview");
+    const btnPng      = document.getElementById("btnPng");
+    const btnPdf      = document.getElementById("btnPdf");
+    const canvas      = document.getElementById("canvas");
+    const ctx         = canvas.getContext("2d");
+
+    let posX = canvas.width/2, posY = canvas.height/2;
+    let bgImg = null;
+
+    function loadImage(url){
+      return new Promise((resolve, reject)=>{
+        const img = new Image();
+        img.onload = ()=> resolve(img);
+        img.onerror = reject;
+        img.decoding = 'async';
+        // allow cross-origin when hosted on vercel (same origin ok)
+        img.src = url;
+      });
+    }
+
+    async function setBackgroundFromUrl(url){
+      try{
+        const img = await loadImage(url);
+        canvas.width = img.width; canvas.height = img.height;
+        posX = canvas.width/2; posY = canvas.height/2;
+        bgImg = img;
+        drawPreview();
+      }catch(e){
+        console.error(e);
+        alert("Gagal memuat template default. Coba upload manual PNG/JPG/WebP (RGB).");
+      }
+    }
+
+    // load default assets on start
+    brandLogo.src = DEFAULT_LOGO_URL;
+    setBackgroundFromUrl(DEFAULT_TEMPLATE_URL);
+
+    useDefault.addEventListener("click", ()=> setBackgroundFromUrl(DEFAULT_TEMPLATE_URL));
+
+    bgInput.addEventListener("change", e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        canvas.width = img.width; canvas.height = img.height;
+        posX = canvas.width/2; posY = canvas.height/2;
+        bgImg = img; drawPreview(); URL.revokeObjectURL(url);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); alert('Gambar gagal dimuat. Gunakan PNG/JPG/WebP (RGB).'); };
+      img.decoding = 'async'; img.src = url;
+    });
+
+    fontFileInp.addEventListener("change", async e => {
+      const file = e.target.files[0]; if (!file) return;
+      try {
+        const fontData = await file.arrayBuffer();
+        const nameBase = file.name.replace(/\.(ttf|otf|woff2?|TTF|OTF|WOFF2?)$/, '');
+        const fontFace = new FontFace(nameBase, fontData);
+        await fontFace.load(); document.fonts.add(fontFace);
+        const opt = document.createElement("option");
+        opt.value = `'${nameBase}'`; opt.textContent = `Custom: ${nameBase}`;
+        fontFamilyS.insertBefore(opt, fontFamilyS.firstChild);
+        fontFamilyS.selectedIndex = 0; drawPreview();
+      } catch(err) { alert("Font gagal dimuat."); console.error(err); }
+    });
+
+    function getNames(){ return namesInput.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean); }
+
+    function drawPreview(name){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      if(bgImg){ ctx.drawImage(bgImg,0,0,canvas.width,canvas.height); }
+      else { ctx.fillStyle = "#fff"; ctx.fillRect(0,0,canvas.width,canvas.height); }
+      const text = name || getNames()[0] || "Nama Tamu";
+      const size = parseInt(fontSizeInp.value,10) || 72;
+      ctx.fillStyle = fontColorIn.value || "#000";
+      ctx.font = `${size}px ${fontFamilyS.value}`;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(text, posX, posY);
+    }
+
+    btnPreview.addEventListener("click", ()=> drawPreview());
+
+    // header logo changer (optional)
+    logoInput?.addEventListener('change', (e)=>{
+      const f = e.target.files && e.target.files[0]; if(!f) return;
+      const url = URL.createObjectURL(f);
+      brandLogo.src = url;
+    });
+
+    canvas.addEventListener('click', (e)=>{
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      posX = Math.round((e.clientX - rect.left) * scaleX);
+      posY = Math.round((e.clientY - rect.top) * scaleY);
+      drawPreview();
+    });
+
+    btnPng.addEventListener("click", ()=>{
+      const names = getNames();
+      if(names.length===0){ alert("Masukkan minimal satu nama"); return; }
+      names.forEach((nm,i)=>{
+        drawPreview(nm);
+        const a = document.createElement('a');
+        a.href = canvas.toDataURL("image/png");
+        a.download = `undangan-${i+1}.png`;
+        a.click();
+      });
+    });
+
+    btnPdf.addEventListener("click", ()=>{
+      const names = getNames();
+      if(names.length===0){ alert("Masukkan minimal satu nama"); return; }
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ unit:'px', format:[canvas.width, canvas.height] });
+      names.forEach((nm,i)=>{
+        if(i>0) pdf.addPage([canvas.width, canvas.height]);
+        drawPreview(nm);
+        pdf.addImage(canvas.toDataURL("image/png"), 'PNG', 0, 0, canvas.width, canvas.height);
+      });
+      pdf.save("undangan.pdf");
+    });
+  </script>
+</body>
+</html>
