@@ -3,9 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Generator Desain Nama Undangan</title>
-  <meta name="description" content="Upload atau pakai template default, isi nama tamu per baris, atur posisi teks, download PNG/PDF. Mendukung upload font custom.">
-  <link rel="icon" href="assets/hmj-teater.png">
+  <title>Undangan Name Generator</title>
   <style>
     :root{ --blue:#23495c; --blueDark:#1e3a4a; --border:#dcdcdc; --bg:#f5f7f9; }
     *{ box-sizing:border-box }
@@ -37,12 +35,10 @@
 <body>
   <header>
     <div class="headerWrap">
-      <div class="brand">
-        <img id="brandLogo" alt="HMJ Teater" src="assets/hmj-teater.png" />
-      </div>
+      <div class="brand"><img id="brandLogo" src="assets/hmj-teater.png" alt="HMJ TEATER" /></div>
       <div class="titles">
         <h1>Generator Desain Nama Undangan</h1>
-        <p>Upload desain undangan kamu » Isi nama » Ketuk tulisan undangan » Download File</p>
+        <p>Upload desain undangan kamu &raquo; Isi nama &raquo; Ketuk tulisan undangan &raquo; Download File</p>
       </div>
     </div>
   </header>
@@ -50,25 +46,11 @@
   <div class="app">
     <div class="card">
       <h3>Pengaturan</h3>
-
-      <details>
-        <summary>Ganti Logo Header (opsional)</summary>
-        <label>Upload Logo:</label>
-        <input id="logoInput" type="file" accept="image/*"><br>
-      </details>
-
-      <label>Template (pakai default atau upload baru):</label>
-      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
-        <button id="useDefault" type="button">Pakai Template Default</button>
-        <span style="opacity:.7; font-size:12px;">atau</span>
-        <input id="bgInput" type="file" accept="image/*">
-      </div>
+      <label>Upload Gambar Template:</label>
+      <input id="bgInput" type="file" accept="image/*"><br>
 
       <label>Daftar Nama (satu per baris):</label>
-      <textarea id="names" placeholder="Contoh:
-Bapak/Ibu Andi
-Keluarga Besar Nugroho
-Sdr. Rendra"></textarea><br>
+      <textarea id="names"></textarea><br>
 
       <label>Ukuran Font:</label>
       <input id="fontSize" type="number" value="72"><br>
@@ -102,56 +84,21 @@ Sdr. Rendra"></textarea><br>
 
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script>
-    const DEFAULT_TEMPLATE_URL = "assets/template.png"; // pakai otomatis saat load
-    const DEFAULT_LOGO_URL = "assets/hmj-teater.png";
+    const bgInput = document.getElementById("bgInput");
+    const namesInput = document.getElementById("names");
+    const fontSizeInput = document.getElementById("fontSize");
+    const fontColorInput = document.getElementById("fontColor");
+    const fontFamilySelect = document.getElementById("fontFamily");
+    const fontFileInput = document.getElementById("fontFile");
+    const btnPreview = document.getElementById("btnPreview");
+    const btnPng = document.getElementById("btnPng");
+    const btnPdf = document.getElementById("btnPdf");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    let posX = canvas.width/2;
+    let posY = canvas.height/2;
 
-    const bgInput     = document.getElementById("bgInput");
-    const logoInput   = document.getElementById("logoInput");
-    const brandLogo   = document.getElementById("brandLogo");
-    const useDefault  = document.getElementById("useDefault");
-    const namesInput  = document.getElementById("names");
-    const fontSizeInp = document.getElementById("fontSize");
-    const fontColorIn = document.getElementById("fontColor");
-    const fontFamilyS = document.getElementById("fontFamily");
-    const fontFileInp = document.getElementById("fontFile");
-    const btnPreview  = document.getElementById("btnPreview");
-    const btnPng      = document.getElementById("btnPng");
-    const btnPdf      = document.getElementById("btnPdf");
-    const canvas      = document.getElementById("canvas");
-    const ctx         = canvas.getContext("2d");
-
-    let posX = canvas.width/2, posY = canvas.height/2;
     let bgImg = null;
-
-    function loadImage(url){
-      return new Promise((resolve, reject)=>{
-        const img = new Image();
-        img.onload = ()=> resolve(img);
-        img.onerror = reject;
-        img.decoding = 'async';
-        // allow cross-origin when hosted on vercel (same origin ok)
-        img.src = url;
-      });
-    }
-
-    async function setBackgroundFromUrl(url){
-      try{
-        const img = await loadImage(url);
-        canvas.width = img.width; canvas.height = img.height;
-        posX = canvas.width/2; posY = canvas.height/2;
-        bgImg = img;
-        drawPreview();
-      }catch(e){
-        console.error(e);
-        alert("Gagal memuat template default. Coba upload manual PNG/JPG/WebP (RGB).");
-      }
-    }
-
-    // load default assets on start
-    brandLogo.src = DEFAULT_LOGO_URL;
-    setBackgroundFromUrl(DEFAULT_TEMPLATE_URL);
-
-    useDefault.addEventListener("click", ()=> setBackgroundFromUrl(DEFAULT_TEMPLATE_URL));
 
     bgInput.addEventListener("change", e => {
       const file = e.target.files[0];
@@ -159,50 +106,66 @@ Sdr. Rendra"></textarea><br>
       const url = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => {
-        canvas.width = img.width; canvas.height = img.height;
+        canvas.width = img.width;
+        canvas.height = img.height;
         posX = canvas.width/2; posY = canvas.height/2;
-        bgImg = img; drawPreview(); URL.revokeObjectURL(url);
+        bgImg = img;
+        drawPreview();
+        URL.revokeObjectURL(url);
       };
       img.onerror = () => { URL.revokeObjectURL(url); alert('Gambar gagal dimuat. Gunakan PNG/JPG/WebP (RGB).'); };
-      img.decoding = 'async'; img.src = url;
+      img.decoding = 'async';
+      img.src = url;
     });
 
-    fontFileInp.addEventListener("change", async e => {
-      const file = e.target.files[0]; if (!file) return;
+    fontFileInput.addEventListener("change", async e => {
+      const file = e.target.files[0];
+      if (!file) return;
       try {
         const fontData = await file.arrayBuffer();
         const nameBase = file.name.replace(/\.(ttf|otf|woff2?|TTF|OTF|WOFF2?)$/, '');
         const fontFace = new FontFace(nameBase, fontData);
-        await fontFace.load(); document.fonts.add(fontFace);
-        const opt = document.createElement("option");
-        opt.value = `'${nameBase}'`; opt.textContent = `Custom: ${nameBase}`;
-        fontFamilyS.insertBefore(opt, fontFamilyS.firstChild);
-        fontFamilyS.selectedIndex = 0; drawPreview();
-      } catch(err) { alert("Font gagal dimuat."); console.error(err); }
+        await fontFace.load();
+        document.fonts.add(fontFace);
+        let opt = document.createElement("option");
+        opt.value = `'${nameBase}'`;
+        opt.textContent = `Custom: ${nameBase}`;
+        fontFamilySelect.insertBefore(opt, fontFamilySelect.firstChild);
+        fontFamilySelect.selectedIndex = 0;
+        drawPreview();
+      } catch(err) {
+        alert("Font gagal dimuat. Pastikan format TTF/OTF/WOFF valid.");
+        console.error(err);
+      }
     });
 
-    function getNames(){ return namesInput.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean); }
+    function getNames(){
+      return namesInput.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    }
 
     function drawPreview(name){
       ctx.clearRect(0,0,canvas.width,canvas.height);
       if(bgImg){ ctx.drawImage(bgImg,0,0,canvas.width,canvas.height); }
       else { ctx.fillStyle = "#fff"; ctx.fillRect(0,0,canvas.width,canvas.height); }
       const text = name || getNames()[0] || "Nama Tamu";
-      const size = parseInt(fontSizeInp.value,10) || 72;
-      ctx.fillStyle = fontColorIn.value || "#000";
-      ctx.font = `${size}px ${fontFamilyS.value}`;
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      const size = parseInt(fontSizeInput.value,10) || 72;
+      ctx.fillStyle = fontColorInput.value || "#000";
+      ctx.font = `${size}px ${fontFamilySelect.value}`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
       ctx.fillText(text, posX, posY);
     }
 
     btnPreview.addEventListener("click", ()=> drawPreview());
 
-    // header logo changer (optional)
-    logoInput?.addEventListener('change', (e)=>{
-      const f = e.target.files && e.target.files[0]; if(!f) return;
-      const url = URL.createObjectURL(f);
-      brandLogo.src = url;
-    });
+    // Auto-load template default dari assets
+    (function(){
+      const img = new Image();
+      img.onload = ()=>{ canvas.width = img.width; canvas.height = img.height; posX = canvas.width/2; posY = canvas.height/2; bgImg = img; drawPreview(); };
+      img.onerror = ()=>{ /* jika gagal, biarkan kanvas putih */ };
+      img.decoding = 'async';
+      img.src = 'assets/template.png';
+    })();
 
     canvas.addEventListener('click', (e)=>{
       const rect = canvas.getBoundingClientRect();
