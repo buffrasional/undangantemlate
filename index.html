@@ -69,6 +69,18 @@
       <label>Font Custom (TTF/OTF/WOFF):</label>
       <input id="fontFile" type="file" accept=".ttf,.otf,.woff,.woff2"><br>
 
+      <label>Kualitas PDF (JPEG):</label>
+      <input id="pdfQuality" type="range" min="0.5" max="1" step="0.05" value="0.85">
+      <span id="qualityVal">0.85</span><br><br>
+
+      <label>Max Resolusi Export (px):</label>
+      <select id="maxRes">
+        <option value="0" selected>Original (sesuai template)</option>
+        <option value="2000">Max 2000px (disarankan)</option>
+        <option value="1500">Max 1500px</option>
+        <option value="1000">Max 1000px</option>
+      </select><br><br>
+
       <button id="btnPreview">Preview</button>
       <button id="btnPng">Download PNG</button>
       <button id="btnPdf">Download PDF</button>
@@ -95,10 +107,18 @@
     const btnPdf = document.getElementById("btnPdf");
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
+    const pdfQualityInput = document.getElementById("pdfQuality");
+    const qualityValSpan = document.getElementById("qualityVal");
+    const maxResSelect = document.getElementById("maxRes");
     let posX = canvas.width/2;
     let posY = canvas.height/2;
 
     let bgImg = null;
+
+    // Live update quality label
+    pdfQualityInput.addEventListener("input", ()=>{
+      qualityValSpan.textContent = pdfQualityInput.value;
+    });
 
     bgInput.addEventListener("change", e => {
       const file = e.target.files[0];
@@ -164,7 +184,7 @@
       img.onload = ()=>{ canvas.width = img.width; canvas.height = img.height; posX = canvas.width/2; posY = canvas.height/2; bgImg = img; drawPreview(); };
       img.onerror = ()=>{ /* jika gagal, biarkan kanvas putih */ };
       img.decoding = 'async';
-      img.src = 'assets/template.png';
+      img.src = 'assets/template.jpg';
     })();
 
     canvas.addEventListener('click', (e)=>{
@@ -188,16 +208,47 @@
       });
     });
 
+    /**
+     * Buat offscreen canvas dengan resolusi terbatas untuk export PDF.
+     * Ini menghindari embed gambar 3508x4961 px (18MB) per halaman.
+     */
+    function getExportCanvas(){
+      const maxPx = parseInt(maxResSelect.value, 10);
+      const srcW = canvas.width, srcH = canvas.height;
+      if(!maxPx || Math.max(srcW, srcH) <= maxPx) return canvas; // pakai original
+      const ratio = maxPx / Math.max(srcW, srcH);
+      const w = Math.round(srcW * ratio), h = Math.round(srcH * ratio);
+      const off = document.createElement('canvas');
+      off.width = w; off.height = h;
+      const offCtx = off.getContext('2d');
+      offCtx.drawImage(canvas, 0, 0, w, h);
+      return off;
+    }
+
     btnPdf.addEventListener("click", ()=>{
       const names = getNames();
       if(names.length===0){ alert("Masukkan minimal satu nama"); return; }
+      const quality = parseFloat(pdfQualityInput.value) || 0.85;
       const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF({ unit:'px', format:[canvas.width, canvas.height] });
-      names.forEach((nm,i)=>{
-        if(i>0) pdf.addPage([canvas.width, canvas.height]);
-        drawPreview(nm);
-        pdf.addImage(canvas.toDataURL("image/png"), 'PNG', 0, 0, canvas.width, canvas.height);
-      });
+
+      // Tentukan dimensi PDF berdasarkan export canvas
+      const firstExport = (()=>{
+        drawPreview(names[0]);
+        return getExportCanvas();
+      })();
+      const pdfW = firstExport.width, pdfH = firstExport.height;
+      const pdf = new jsPDF({ unit:'px', format:[pdfW, pdfH], hotfixes:['px_scaling'] });
+
+      // Halaman pertama
+      pdf.addImage(firstExport.toDataURL("image/jpeg", quality), 'JPEG', 0, 0, pdfW, pdfH, undefined, 'FAST');
+
+      // Halaman berikutnya
+      for(let i=1; i<names.length; i++){
+        drawPreview(names[i]);
+        const exp = getExportCanvas();
+        pdf.addPage([pdfW, pdfH]);
+        pdf.addImage(exp.toDataURL("image/jpeg", quality), 'JPEG', 0, 0, pdfW, pdfH, undefined, 'FAST');
+      }
       pdf.save("undangan.pdf");
     });
   </script>
